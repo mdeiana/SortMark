@@ -94,9 +94,15 @@ def main():
                         help='Specify how many items to print (default: all)')
     parser.add_argument('--file', '-f', dest='bookDir', default=None,
                         help=f'Specify path to Bookmarks file (default: Chrome or Edge default on Windows),\
-                         whichever is found first. Note that default dir is {info_defDir}')
-
+                         whichever is found first. You may also specify "-f chrome" or "-f edge"\
+                         to use default dir for specified browser. Note that default dir is {info_defDir}')
     args = parser.parse_args()
+
+    # if no arguments are provided, print help
+    if len(sys.argv)==1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
 
     # get right Bookmarks directory
     if not args.bookDir:
@@ -105,7 +111,11 @@ def main():
         elif os.path.isfile(def_edgeBookDir):
             path = def_edgeBookDir
     else:
-        if os.path.isfile(args.bookDir):
+        if args.bookDir.upper() == 'chrome'.upper():
+            path = def_chromeBookDir
+        elif args.bookDir.upper() == 'edge'.upper():
+            path = def_edgeBookDir
+        elif os.path.isfile(args.bookDir):
             path = args.bookDir
         else:
             print("SortMark: fatal: Provided directory is not valid")
