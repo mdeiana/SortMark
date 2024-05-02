@@ -81,7 +81,7 @@ def main():
     parser = argparse.ArgumentParser(
                 prog="SortMark",
                 description="Sort Chrome and Edge bookmarks by date added or date last used",
-                epilog='Microsoft pls fix')
+                epilog='SortMark by Michele Deiana (github.com/mdeiana). Microsoft pls fix')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--added', '-a', dest='sort_by', default='--added', action="store_const", const='--added')
     group.add_argument('--lastUsed', '-l', dest='sort_by', default='--added', action='store_const', const='--lastUsed',
@@ -93,9 +93,9 @@ def main():
                         dest='items', default=0, metavar='N', type=int,
                         help='Specify how many items to print (default: all)')
     parser.add_argument('--file', '-f', dest='bookDir', default=None,
-                        help=f'Specify path to Bookmarks file (default: Chrome or Edge default on Windows),\
+                        help=f'Specify path to Bookmarks file (default: Chrome or Edge default path on Windows),\
                          whichever is found first. You may also specify "-f chrome" or "-f edge"\
-                         to use default dir for specified browser. Note that default dir is {info_defDir}')
+                         to use default path for specified browser. Note that default dir is {info_defDir}')
     args = parser.parse_args()
 
     # if no arguments are provided, print help
@@ -158,14 +158,6 @@ def main():
     else:
         for i, bm in upp_limit:
             bm.printBook(i)
-
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
