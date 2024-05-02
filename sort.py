@@ -1,4 +1,6 @@
 import re
+import os
+import sys
 import datetime
 import argparse
 from datetime import datetime, timedelta
@@ -12,23 +14,32 @@ class Bookmark:
         self.line = line
     
     def printBook(self, id):
-        print(f"Bookmark {id}, found at line {self.line}:")
-        print(f"\tName: {self.name}")
-        print(f"\tUrl: {self.url}")
-        print(f"\tDate added: {self.makeHuman(0).astimezone()}")
-        print(f"\tDate last used: {self.makeHuman(1).astimezone()}")
+        print(f"Bookmark {id+1}, found at line {self.line}:")
+        print(f"\tName:\t\t {self.name}")
+        print(f"\tUrl:\t\t {self.url}")
+        print(f"\tDate added:\t {self.makeHuman('--date_add')}")
+        print(f"\tDate last used:\t {self.makeHuman('--date_lastUsed')}")
+        print('\n')
 
-    def makeHuman(self, sort_by: int) -> datetime:
+    def writeBook(self, id, fstream):
+        fstream.write(f"Bookmark {id+1}, found at line {self.line}:\n")
+        fstream.write(f"\tName:\t\t {self.name}\n")
+        fstream.write(f"\tUrl:\t\t {self.url}\n")
+        fstream.write(f"\tDate added:\t {self.makeHuman('--date_add')}\n")
+        fstream.write(f"\tDate last used:\t {self.makeHuman('--date_lastUsed')}\n")
+        fstream.write('\n')
+
+    def makeHuman(self, which_date) -> str:
         # Chromium timestamps are in microseconds since 1601-01-01
-        if sort_by == 0:
-            timestamp = self.date_add
-        else:
+        if which_date == '--lastUsed':
             timestamp = self.date_lastU
+        else:
+            timestamp = self.date_add
         
         windows_epoch = datetime(1601, 1, 1)
         delta = timedelta(microseconds=timestamp)
         human_datetime = windows_epoch + delta
-        return human_datetime
+        return human_datetime.strftime('%Y-%m-%d at %H:%M UTC')
 
 def sortInsert(bookmarks: list, bm: Bookmark, sort_by: str):
     #print(f"Len of passed bookmarks: {len(bookmarks)}")
@@ -61,20 +72,49 @@ def isolateName(string: str) -> str:
     return name
 
 def main():
-    # get sort_by
-    sort_by = input("0 to sort by date_added, 1 by date_lastU: ")
-    if sort_by == '0':
-        sort_by = "--added"
-    else:
-        sort_by = "--lastUsed"
+    # default Bookmarks paths in Windows, only used if another path isn't specified
+    def_edgeBookDir = os.path.expandvars(r'%USERPROFILE%\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks')
+    def_chromeBookDir = os.path.expandvars(r'%USERPROFILE%\AppData\Local\Google\Chrome\User Data\Default\Bookmarks')
+    info_defDir = r'%%USERPROFILE%%\AppData\Local\<COMPANY>\<BROWSER>\User Data\Default\Bookmarks'
 
+    # parse arguments
+    parser = argparse.ArgumentParser(
+                prog="SortMark",
+                description="Sort Chrome and Edge bookmarks by date added or date last used",
+                epilog='Microsoft pls fix')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--added', '-a', dest='sort_by', default='--added', action="store_const", const='--added')
+    group.add_argument('--lastUsed', '-l', dest='sort_by', default='--added', action='store_const', const='--lastUsed',
+                        help='Choose sorting strategy (default: by date added i.e. --added)')
     
+    parser.add_argument('--output', '--out', '-o', dest='output', default=None,
+                        help="Choose file to print sorted bookmarks to (default: stdout)")
+    parser.add_argument('--items', '-i', '--count', '-c', '--number', '-n',
+                        dest='items', default=0, metavar='N', type=int,
+                        help='Specify how many items to print (default: all)')
+    parser.add_argument('--file', '-f', dest='bookDir', default=None,
+                        help=f'Specify path to Bookmarks file (default: Chrome or Edge default on Windows),\
+                         whichever is found first. Note that default dir is {info_defDir}')
+
+    args = parser.parse_args()
+
+    # get right Bookmarks directory
+    if not args.bookDir:
+        if os.path.isfile(def_chromeBookDir):
+            path = def_chromeBookDir
+        elif os.path.isfile(def_edgeBookDir):
+            path = def_edgeBookDir
+    else:
+        if os.path.isfile(args.bookDir):
+            path = args.bookDir
+        else:
+            print("SortMark: fatal: Provided directory is not valid")
+            sys.exit()
 
     # populate bookmarks list
     bookmarks = []
     i = 0
-
-    with open("Bookmarks", "r") as f:
+    with open(path, "r") as f:
         while True:
             i += 1
             line = f.readline().strip()
@@ -89,20 +129,26 @@ def main():
             elif line.startswith('"url":'):
                 url = isolateUrl(line)
                 bookmark = Bookmark(date_add, date_lastU, name, url, i)
-                sortInsert(bookmarks, bookmark, sort_by)
+                sortInsert(bookmarks, bookmark, args.sort_by)
 
     print("Collection complete. Printing...\n")
+
+    # get right amount of items to print
+    if args.items:
+        upp_limit = enumerate(bookmarks[:args.items])
+    else:
+        upp_limit = enumerate(bookmarks)
+
     # print to file
-    with open("out.txt", "w") as f:
-        for i, bm in enumerate(bookmarks):
-            f.write(f"Bookmark {i+1}, found at line {bm.line}:\n")
-            f.write(f"\tName:\t\t {bm.name}\n")
-            f.write(f"\tUrl:\t\t {bm.url}\n")
-            f.write(f"\tDate added:\t {bm.makeHuman(0).strftime('%Y-%m-%d at %H:%M UTC')}\n")
-            f.write(f"\tDate last used:\t {bm.makeHuman(1).strftime('%Y-%m-%d at %H:%M UTC')}\n")
-            #f.write(f"Dates: {bm.date_add} {bm.date_lastU}\n\n")
-            f.write('\n')
-            
+    if args.output:
+        with open(args.output, "w") as f:
+            for i, bm in upp_limit:
+                bm.writeBook(i, f)
+    # print to stdout
+    else:
+        for i, bm in upp_limit:
+            bm.printBook(i)
+
 
 
 
